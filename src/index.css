@@ -1,0 +1,529 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-script: "Dancing Script", cursive;
+
+  /* Bright Medical Green + Light Cool Grey + Pure White + Dark Black Header Theme */
+  --color-arova-forest: #008F00;
+  --color-arova-emerald: #00B800;
+  --color-arova-green: #00B800;
+  --color-arova-green-dark: #008F00;
+  --color-arova-hover: #009900;
+  --color-arova-fresh: #009900;
+  --color-arova-white: #FFFFFF;
+  --color-arova-canvas: #EEF2F2;
+  --color-arova-nav: #080B0B;
+  --color-arova-mint: #E8F8E8;
+  --color-arova-sage: #D9E0E0;
+  --color-arova-text: #202525;
+  --color-arova-muted: #737B7B;
+  --color-arova-border: #D9E0E0;
+}
+
+:root {
+  color-scheme: light;
+}
+
+@layer base {
+  html,
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-arova-canvas);
+    color: var(--color-arova-text);
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+  }
+
+  select,
+  input,
+  textarea {
+    color-scheme: light;
+  }
+
+  option {
+    background-color: #FFFFFF;
+    color: #202525;
+  }
+
+  :focus-visible {
+    outline: 2px solid #00B800;
+    outline-offset: 2px;
+  }
+}
+
+.font-arova-script {
+  font-family: var(--font-script);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Crisp Clinical Cards & Light Cool-Grey Canvas Surfaces */
+.arova-glass {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid #D9E0E0;
+}
+
+.arova-glass-card {
+  background: #FFFFFF;
+  border: 1px solid #D9E0E0;
+  box-shadow:
+    0 6px 20px -8px rgba(8, 11, 11, 0.08),
+    0 1px 3px rgba(8, 11, 11, 0.04);
+}
+
+.arova-hero-mesh {
+  background-color: #EEF2F2;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 10% 10%, rgba(0, 184, 0, 0.045), transparent 65%),
+    radial-gradient(ellipse 60% 50% at 90% 85%, rgba(0, 143, 0, 0.035), transparent 65%);
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #EEF2F2;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C4CECE;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9AA6A6;
+}
+
+@keyframes arova-float {
+  0%, 100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -4px;
+  }
+}
+
+@keyframes arova-float-subtle {
+  0%, 100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -2.5px;
+  }
+}
+
+@keyframes arova-cardiac-float {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -6px, 0) scale(1.018);
+  }
+}
+
+@keyframes arova-heart-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  18% {
+    transform: scale(1.05);
+  }
+  32% {
+    transform: scale(0.99);
+  }
+  48% {
+    transform: scale(1.03);
+  }
+  70% {
+    transform: scale(1);
+  }
+}
+
+@keyframes arova-logo-breathe {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 8px rgba(0, 184, 0, 0.18));
+  }
+  50% {
+    transform: scale(1.028);
+    filter: drop-shadow(0 0 14px rgba(0, 184, 0, 0.34));
+  }
+}
+
+@keyframes arova-ecg-sweep {
+  0% {
+    stroke-dashoffset: 1200;
+    opacity: 0.4;
+  }
+  20%, 80% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.4;
+  }
+}
+
+@keyframes arova-particle-drift {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translate3d(12px, -18px, 0) scale(1.22);
+    opacity: 0.65;
+  }
+}
+
+@keyframes arova-scan-line {
+  0% {
+    transform: translateY(0%);
+    opacity: 0.25;
+  }
+  15%, 85% {
+    opacity: 0.95;
+  }
+  50% {
+    transform: translateY(156px);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateY(0%);
+    opacity: 0.25;
+  }
+}
+
+@keyframes arova-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes arova-typing-bounce {
+  0%, 80%, 100% {
+    transform: translateY(0) scale(0.85);
+    opacity: 0.45;
+  }
+  40% {
+    transform: translateY(-4px) scale(1.1);
+    opacity: 1;
+  }
+}
+
+@keyframes arova-status-breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.22);
+    opacity: 1;
+  }
+}
+
+@keyframes arova-status-ping {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.75;
+  }
+  75%, 100% {
+    transform: scale(2.15);
+    opacity: 0;
+  }
+}
+
+.arova-float-grid {
+  perspective: 1200px;
+}
+
+.arova-float-card {
+  will-change: transform;
+  box-shadow:
+    0 8px 24px -10px rgba(8, 11, 11, 0.08),
+    0 2px 6px -2px rgba(8, 11, 11, 0.04);
+  animation: arova-float var(--arova-float-duration, 6.8s) ease-in-out infinite;
+  transition:
+    transform 300ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 300ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 220ms ease,
+    background-color 220ms ease;
+}
+
+.arova-float-card:hover {
+  transform: perspective(1200px) translate3d(0, -5px, 8px) scale(1.01);
+  box-shadow:
+    0 18px 34px -14px rgba(8, 11, 11, 0.12),
+    0 6px 18px -6px rgba(0, 184, 0, 0.16);
+  border-color: rgba(0, 184, 0, 0.55);
+}
+
+.arova-float-card:focus-within {
+  animation-play-state: paused;
+}
+
+.arova-float-card-subtle {
+  will-change: transform;
+  box-shadow:
+    0 6px 20px -8px rgba(8, 11, 11, 0.07),
+    0 1px 3px rgba(8, 11, 11, 0.04);
+  animation: arova-float-subtle var(--arova-float-duration, 7.6s) ease-in-out infinite;
+  transition:
+    transform 300ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 300ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 220ms ease;
+}
+
+.arova-float-card-subtle:hover {
+  transform: perspective(1200px) translate3d(0, -3px, 6px) scale(1.004);
+  box-shadow:
+    0 14px 28px -12px rgba(8, 11, 11, 0.11),
+    0 4px 14px -6px rgba(0, 184, 0, 0.14);
+  border-color: rgba(0, 184, 0, 0.45);
+}
+
+.arova-float-card-subtle:focus-within {
+  animation-play-state: paused;
+}
+
+.arova-float-delay-1 {
+  --arova-float-duration: 6.2s;
+  animation-delay: 0s;
+}
+
+.arova-float-delay-2 {
+  --arova-float-duration: 7.1s;
+  animation-delay: -1.3s;
+}
+
+.arova-float-delay-3 {
+  --arova-float-duration: 6.7s;
+  animation-delay: -2.5s;
+}
+
+.arova-float-delay-4 {
+  --arova-float-duration: 7.5s;
+  animation-delay: -3.7s;
+}
+
+.arova-float-delay-5 {
+  --arova-float-duration: 6.9s;
+  animation-delay: -4.8s;
+}
+
+.arova-float-delay-6 {
+  --arova-float-duration: 7.8s;
+  animation-delay: -5.9s;
+}
+
+.arova-cardiac-float {
+  animation: arova-cardiac-float 8.5s ease-in-out infinite;
+}
+
+.arova-cardiac-float-slow {
+  animation: arova-cardiac-float 10.5s ease-in-out -3.5s infinite;
+}
+
+.arova-heart-pulse {
+  transform-origin: center;
+  animation: arova-heart-pulse 2.4s ease-in-out infinite;
+}
+
+.arova-logo-breathe {
+  animation: arova-logo-breathe 4.4s ease-in-out infinite;
+}
+
+.arova-ecg-sweep {
+  stroke-dasharray: 1200;
+  animation: arova-ecg-sweep 5.5s linear infinite;
+}
+
+.arova-particle {
+  animation: arova-particle-drift var(--arova-particle-dur, 9s) ease-in-out infinite;
+}
+
+.arova-scan-beam {
+  animation: arova-scan-line 4.4s ease-in-out infinite;
+}
+
+.arova-shimmer {
+  background: linear-gradient(
+    90deg,
+    #E3E8E8 25%,
+    #F3F6F6 50%,
+    #E3E8E8 75%
+  );
+  background-size: 200% 100%;
+  animation: arova-shimmer 1.8s ease-in-out infinite;
+}
+
+.arova-typing-dot {
+  animation: arova-typing-bounce 1.2s ease-in-out infinite;
+}
+
+.arova-status-normal-dot {
+  animation: arova-status-breathe 3.2s ease-in-out infinite;
+}
+
+.arova-status-warning-ring {
+  animation: arova-status-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.arova-status-critical-ring {
+  animation: arova-status-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.arova-cta-primary {
+  transition:
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 200ms ease,
+    filter 200ms ease;
+}
+
+.arova-cta-primary:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.015);
+  box-shadow: 0 10px 24px -6px rgba(0, 184, 0, 0.32);
+}
+
+.arova-cta-primary:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+
+.arova-cta-secondary {
+  transition:
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 200ms ease,
+    border-color 200ms ease;
+}
+
+.arova-cta-secondary:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.012);
+  box-shadow: 0 8px 20px -8px rgba(8, 11, 11, 0.14);
+}
+
+.arova-cta-secondary:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+
+@keyframes arova-voice-wave {
+  0%, 100% {
+    transform: scaleY(0.32);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.arova-voice-bar {
+  transform-origin: center;
+  animation: arova-voice-wave 1.15s ease-in-out infinite;
+}
+
+@keyframes arova-cardiac-lubdub {
+  0%, 100% {
+    transform: scale(1);
+  }
+  12% {
+    transform: scale(1.1);
+  }
+  24% {
+    transform: scale(0.98);
+  }
+  38% {
+    transform: scale(1.06);
+  }
+  56% {
+    transform: scale(1);
+  }
+}
+
+@keyframes arova-systole-ring {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.72;
+  }
+  45% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+}
+
+.arova-bpm-heart-beat {
+  transform-origin: 140px 76px;
+  animation: arova-cardiac-lubdub var(--arova-bpm-cycle, 833ms) cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.arova-bpm-wave-ring {
+  transform-origin: 140px 76px;
+  animation: arova-systole-ring var(--arova-bpm-cycle, 833ms) ease-out infinite;
+}
+
+@keyframes arova-emergency-border {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgba(239, 68, 68, 0.72),
+      0 24px 55px -12px rgba(185, 28, 28, 0.52);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgba(248, 113, 113, 0.92),
+      0 24px 65px -10px rgba(239, 68, 68, 0.72);
+  }
+}
+
+.arova-emergency-pulse {
+  animation: arova-emergency-border 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arova-emergency-pulse,
+  .arova-float-card,
+  .arova-float-card-subtle,
+  .arova-cardiac-float,
+  .arova-cardiac-float-slow,
+  .arova-heart-pulse,
+  .arova-logo-breathe,
+  .arova-ecg-sweep,
+  .arova-particle,
+  .arova-bpm-heart-beat,
+  .arova-bpm-wave-ring,
+  .arova-scan-beam,
+  .arova-voice-bar,
+  .arova-shimmer,
+  .arova-typing-dot,
+  .arova-status-normal-dot,
+  .arova-status-warning-ring,
+  .arova-status-critical-ring {
+    animation: none !important;
+    transition: box-shadow 200ms ease, border-color 200ms ease;
+  }
+
+  .arova-float-card:hover,
+  .arova-float-card-subtle:hover,
+  .arova-cta-primary:hover:not(:disabled),
+  .arova-cta-secondary:hover:not(:disabled) {
+    transform: none;
+  }
+}

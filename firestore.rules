@@ -1,0 +1,1269 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1 / Safety Net: Global default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Helpers ---
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.email == 'aasiyahadiya7575@gmail.com' ||
+        request.auth.token.email == 'salmatasneem75@gmail.com' ||
+        request.auth.token.email == 'salmatasneem692@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // --- Validation Blueprints ---
+    function isValidProfileSettings(settings) {
+      return settings is map
+        && settings.keys().hasOnly(['notificationsEnabled', 'preferredLanguage', 'emergencyAlertsEnabled', 'ageGroup'])
+        && (!('notificationsEnabled' in settings) || settings.notificationsEnabled is bool)
+        && (!('preferredLanguage' in settings) || settings.preferredLanguage in ['en', 'kn', 'hi'])
+        && (!('emergencyAlertsEnabled' in settings) || settings.emergencyAlertsEnabled is bool)
+        && (!('ageGroup' in settings) || (settings.ageGroup is string && settings.ageGroup.size() <= 40));
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'role', 'accountStatus', 'profileSettings', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.role is string && data.role in ['patient', 'caregiver', 'admin']
+        && (!('accountStatus' in data) || data.accountStatus in ['active', 'suspended'])
+        && (!('profileSettings' in data) || isValidProfileSettings(data.profileSettings))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPrivateContact(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'phone', 'emergencyNotes', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 32))
+        && (!('emergencyNotes' in data) || (data.emergencyNotes is string && data.emergencyNotes.size() <= 500))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPatient(data, patientId) {
+      return data.keys().hasAll([
+          'patientId', 'ownerUid', 'displayName', 'baselineStatus',
+          'baselineSamplesCount', 'dataMode', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'patientId', 'ownerUid', 'displayName', 'ageGroup', 'baselineStatus',
+          'baselineSamplesCount', 'baselineHeartRateMean', 'baselineSpo2Mean',
+          'baselineTempMean', 'baselineSource', 'baselineModelTrained', 'baselineModelVersion',
+          'baselineEcgBpmMean', 'baselineActiveHrMean', 'primaryCaregiverUid', 'secondaryCaregiverUid',
+          'primaryCaregiverName', 'secondaryCaregiverName', 'dataMode',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.patientId)
+        && data.patientId == patientId
+        && isValidId(data.ownerUid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && (!('ageGroup' in data) || (data.ageGroup is string && data.ageGroup.size() <= 40))
+        && data.baselineStatus in ['not_started', 'collecting', 'ready']
+        && data.baselineSamplesCount is int && data.baselineSamplesCount >= 0 && data.baselineSamplesCount <= 1000000
+        && (!('baselineHeartRateMean' in data) || (data.baselineHeartRateMean is number && data.baselineHeartRateMean >= 0 && data.baselineHeartRateMean <= 260))
+        && (!('baselineSpo2Mean' in data) || (data.baselineSpo2Mean is number && data.baselineSpo2Mean >= 0 && data.baselineSpo2Mean <= 100))
+        && (!('baselineTempMean' in data) || (data.baselineTempMean is number && data.baselineTempMean >= 25 && data.baselineTempMean <= 45))
+        && (!('baselineSource' in data) || data.baselineSource in ['sample_demo', 'simulator', 'esp32_hardware'])
+        && (!('baselineModelTrained' in data) || data.baselineModelTrained is bool)
+        && (!('baselineModelVersion' in data) || (data.baselineModelVersion is string && data.baselineModelVersion.size() <= 80))
+        && (!('baselineEcgBpmMean' in data) || (data.baselineEcgBpmMean is number && data.baselineEcgBpmMean >= 20 && data.baselineEcgBpmMean <= 260))
+        && (!('baselineActiveHrMean' in data) || (data.baselineActiveHrMean is number && data.baselineActiveHrMean >= 20 && data.baselineActiveHrMean <= 260))
+        && (!('primaryCaregiverUid' in data) || (data.primaryCaregiverUid is string && data.primaryCaregiverUid.size() <= 128))
+        && (!('secondaryCaregiverUid' in data) || (data.secondaryCaregiverUid is string && data.secondaryCaregiverUid.size() <= 128))
+        && (!('primaryCaregiverName' in data) || (data.primaryCaregiverName is string && data.primaryCaregiverName.size() <= 100))
+        && (!('secondaryCaregiverName' in data) || (data.secondaryCaregiverName is string && data.secondaryCaregiverName.size() <= 100))
+        && data.dataMode in ['sample', 'live']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidReading(data, patientId, readingId) {
+      return data.keys().hasAll([
+          'readingId', 'patientId', 'ownerUid', 'heartRate', 'spo2',
+          'temperatureC', 'movementStatus', 'signalQuality', 'anomalyScore',
+          'alertLevel', 'source', 'mlEngine', 'explanation', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'readingId', 'patientId', 'ownerUid', 'deviceId', 'primaryCaregiverUid', 'secondaryCaregiverUid',
+          'heartRate', 'spo2', 'temperatureC', 'movementStatus', 'accelMagnitude',
+          'gyroMagnitude', 'accelX', 'accelY', 'accelZ', 'gyroX', 'gyroY', 'gyroZ',
+          'possibleFallDetected', 'ecgSamples', 'ecgSamplingRate',
+          'ecgSignalQuality', 'ecgLeadOff', 'ecgTimestamp', 'ecgHeartRateBpm',
+          'signalQuality', 'anomalyStatus', 'anomalyScore', 'alertLevel',
+          'contributingFeatures', 'persistenceCount', 'modelVersion',
+          'source', 'mlEngine', 'explanation', 'createdAt'
+        ])
+        && isValidId(data.readingId) && data.readingId == readingId
+        && isValidId(data.patientId) && data.patientId == patientId
+        && isValidId(data.ownerUid)
+        && (!('deviceId' in data) || (data.deviceId is string && data.deviceId.size() <= 128))
+        && (!('primaryCaregiverUid' in data) || (data.primaryCaregiverUid is string && data.primaryCaregiverUid.size() <= 128))
+        && (!('secondaryCaregiverUid' in data) || (data.secondaryCaregiverUid is string && data.secondaryCaregiverUid.size() <= 128))
+        && (data.heartRate == null || (data.heartRate is number && data.heartRate >= 0 && data.heartRate <= 260))
+        && (data.spo2 == null || (data.spo2 is number && data.spo2 >= 0 && data.spo2 <= 100))
+        && (data.temperatureC == null || (data.temperatureC is number && data.temperatureC >= 20 && data.temperatureC <= 45))
+        && data.movementStatus in ['resting', 'walking', 'active', 'fall_suspect', 'inactive']
+        && (!('accelMagnitude' in data) || (data.accelMagnitude is number && data.accelMagnitude >= 0 && data.accelMagnitude <= 100))
+        && (!('gyroMagnitude' in data) || (data.gyroMagnitude is number && data.gyroMagnitude >= 0 && data.gyroMagnitude <= 2000))
+        && (!('accelX' in data) || data.accelX == null || (data.accelX is number && data.accelX >= -100 && data.accelX <= 100))
+        && (!('accelY' in data) || data.accelY == null || (data.accelY is number && data.accelY >= -100 && data.accelY <= 100))
+        && (!('accelZ' in data) || data.accelZ == null || (data.accelZ is number && data.accelZ >= -100 && data.accelZ <= 100))
+        && (!('gyroX' in data) || data.gyroX == null || (data.gyroX is number && data.gyroX >= -2000 && data.gyroX <= 2000))
+        && (!('gyroY' in data) || data.gyroY == null || (data.gyroY is number && data.gyroY >= -2000 && data.gyroY <= 2000))
+        && (!('gyroZ' in data) || data.gyroZ == null || (data.gyroZ is number && data.gyroZ >= -2000 && data.gyroZ <= 2000))
+        && (!('possibleFallDetected' in data) || data.possibleFallDetected is bool)
+        && (!('ecgSamples' in data) || (
+          data.ecgSamples is list
+          && data.ecgSamples.size() <= 250
+          && (data.ecgSamples.size() == 0 || data.ecgSamples[0] is number)
+        ))
+        && (!('ecgSamplingRate' in data) || (data.ecgSamplingRate is number && data.ecgSamplingRate >= 25 && data.ecgSamplingRate <= 1000))
+        && (!('ecgSignalQuality' in data) || data.ecgSignalQuality in ['good', 'noisy', 'lead_off', 'unavailable'])
+        && (!('ecgLeadOff' in data) || data.ecgLeadOff is bool)
+        && (!('ecgTimestamp' in data) || (data.ecgTimestamp is string && data.ecgTimestamp.size() <= 60))
+        && (!('ecgHeartRateBpm' in data) || (data.ecgHeartRateBpm is number && data.ecgHeartRateBpm >= 0 && data.ecgHeartRateBpm <= 260))
+        && data.signalQuality in ['good', 'noisy', 'poor_contact']
+        && (!('anomalyStatus' in data) || data.anomalyStatus in ['insufficient_baseline', 'paused_poor_quality', 'normal', 'anomalous'])
+        && data.anomalyScore is number && data.anomalyScore >= -10 && data.anomalyScore <= 10
+        && data.alertLevel in ['Normal', 'Warning', 'Critical']
+        && (!('contributingFeatures' in data) || (
+          data.contributingFeatures is list
+          && data.contributingFeatures.size() <= 8
+          && (data.contributingFeatures.size() == 0 || data.contributingFeatures[0] is string)
+        ))
+        && (!('persistenceCount' in data) || (data.persistenceCount is int && data.persistenceCount >= 0 && data.persistenceCount <= 1000))
+        && (!('modelVersion' in data) || (data.modelVersion is string && data.modelVersion.size() <= 80))
+        && data.source in ['sample_demo', 'simulator', 'esp32_hardware']
+        && data.mlEngine in ['unconnected_rule_check', 'python_isolation_forest']
+        && data.explanation is string && data.explanation.size() >= 1 && data.explanation.size() <= 600
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAlert(data, patientId, alertId) {
+      return data.keys().hasAll([
+          'alertId', 'patientId', 'ownerUid', 'level', 'status', 'title',
+          'explanation', 'triggeredMetrics', 'source', 'callEscalationStatus',
+          'callLog', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'alertId', 'patientId', 'ownerUid', 'primaryCaregiverUid', 'secondaryCaregiverUid',
+          'level', 'status', 'title', 'explanation', 'triggeredMetrics', 'source',
+          'fallEventId', 'sensorFusionStatus',
+          'acknowledgedByUid', 'acknowledgedByName', 'followUpAction',
+          'anomalyScore', 'prototypeNotice', 'relevantReadingsSummary',
+          'patientAcknowledged', 'falseAlertReported', 'falseAlertReason',
+          'unreadByPatient', 'unreadByCaregiver', 'notificationStatus', 'escalationStatus',
+          'callEscalationStatus', 'callLog', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.alertId) && data.alertId == alertId
+        && isValidId(data.patientId) && data.patientId == patientId
+        && isValidId(data.ownerUid)
+        && (!('primaryCaregiverUid' in data) || (data.primaryCaregiverUid is string && data.primaryCaregiverUid.size() <= 128))
+        && (!('secondaryCaregiverUid' in data) || (data.secondaryCaregiverUid is string && data.secondaryCaregiverUid.size() <= 128))
+        && data.level in ['Warning', 'Critical']
+        && data.status in ['active', 'acknowledged', 'resolved']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.explanation is string && data.explanation.size() >= 1 && data.explanation.size() <= 800
+        && data.triggeredMetrics is list && data.triggeredMetrics.size() <= 8
+        && (data.triggeredMetrics.size() == 0 || data.triggeredMetrics[0] is string)
+        && data.source in ['sample_demo', 'simulator', 'esp32_hardware', 'webcam_pose', 'demo_simulation']
+        && (!('fallEventId' in data) || (data.fallEventId is string && data.fallEventId.size() <= 128))
+        && (!('sensorFusionStatus' in data) || data.sensorFusionStatus in ['webcam_only', 'corroborated', 'sensor_disagreement'])
+        && (!('acknowledgedByUid' in data) || (data.acknowledgedByUid is string && data.acknowledgedByUid.size() <= 128))
+        && (!('acknowledgedByName' in data) || (data.acknowledgedByName is string && data.acknowledgedByName.size() <= 100))
+        && (!('followUpAction' in data) || (data.followUpAction is string && data.followUpAction.size() <= 500))
+        && (!('anomalyScore' in data) || (data.anomalyScore is number && data.anomalyScore >= -2.0 && data.anomalyScore <= 2.0))
+        && (!('prototypeNotice' in data) || (data.prototypeNotice is string && data.prototypeNotice.size() <= 240))
+        && (!('relevantReadingsSummary' in data) || (data.relevantReadingsSummary is string && data.relevantReadingsSummary.size() <= 240))
+        && (!('patientAcknowledged' in data) || data.patientAcknowledged is bool)
+        && (!('falseAlertReported' in data) || data.falseAlertReported is bool)
+        && (!('falseAlertReason' in data) || (data.falseAlertReason is string && data.falseAlertReason.size() <= 300))
+        && (!('unreadByPatient' in data) || data.unreadByPatient is bool)
+        && (!('unreadByCaregiver' in data) || data.unreadByCaregiver is bool)
+        && (!('notificationStatus' in data) || data.notificationStatus in ['pending', 'simulated', 'delivered', 'partial_failure', 'failed'])
+        && (!('escalationStatus' in data) || (data.escalationStatus is string && data.escalationStatus.size() <= 64))
+        && data.callEscalationStatus in ['not_triggered', 'provider_unconfigured', 'calling_primary', 'primary_answered', 'escalated_secondary', 'completed']
+        && data.callLog is list && data.callLog.size() <= 12
+        && (data.callLog.size() == 0 || data.callLog[0] is string)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFallLocation(loc) {
+      return loc is map
+        && loc.keys().hasAll(['latitude', 'longitude', 'capturedAt'])
+        && loc.keys().hasOnly(['latitude', 'longitude', 'accuracyMeters', 'capturedAt'])
+        && loc.latitude is number && loc.latitude >= -90 && loc.latitude <= 90
+        && loc.longitude is number && loc.longitude >= -180 && loc.longitude <= 180
+        && (!('accuracyMeters' in loc) || (loc.accuracyMeters is number && loc.accuracyMeters >= 0 && loc.accuracyMeters <= 50000))
+        && loc.capturedAt is string && loc.capturedAt.size() <= 64;
+    }
+
+    function isValidFallEvent(data, patientId, eventId) {
+      return data.keys().hasAll([
+          'eventId', 'patientId', 'ownerUid', 'alertId', 'detectionMode',
+          'isSimulated', 'state', 'status', 'reason', 'confidence',
+          'torsoAngleDeg', 'sensorFusionStatus', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'eventId', 'patientId', 'ownerUid', 'primaryCaregiverUid', 'secondaryCaregiverUid',
+          'alertId', 'detectionMode', 'isSimulated', 'state', 'status', 'reason',
+          'confidence', 'torsoAngleDeg', 'verticalVelocity', 'horizontalDurationSec',
+          'peopleCount', 'sensorFusionStatus', 'wearableSummary', 'location',
+          'cancelledBy', 'cancellationReason', 'acknowledgedBy', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.eventId) && data.eventId == eventId
+        && isValidId(data.patientId) && data.patientId == patientId
+        && isValidId(data.ownerUid)
+        && (!('primaryCaregiverUid' in data) || (data.primaryCaregiverUid is string && data.primaryCaregiverUid.size() <= 128))
+        && (!('secondaryCaregiverUid' in data) || (data.secondaryCaregiverUid is string && data.secondaryCaregiverUid.size() <= 128))
+        && isValidId(data.alertId)
+        && data.detectionMode in ['webcam_pose', 'demo_simulation']
+        && data.isSimulated is bool
+        && data.state in ['Normal', 'Warning', 'Possible Fall']
+        && data.status in ['pending_confirmation', 'escalated', 'cancelled_safe', 'caregiver_acknowledged', 'false_alert', 'resolved']
+        && data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 600
+        && data.confidence is number && data.confidence >= 0 && data.confidence <= 1
+        && data.torsoAngleDeg is number && data.torsoAngleDeg >= 0 && data.torsoAngleDeg <= 180
+        && (!('verticalVelocity' in data) || (data.verticalVelocity is number && data.verticalVelocity >= -20 && data.verticalVelocity <= 20))
+        && (!('horizontalDurationSec' in data) || (data.horizontalDurationSec is number && data.horizontalDurationSec >= 0 && data.horizontalDurationSec <= 3600))
+        && (!('peopleCount' in data) || (data.peopleCount is int && data.peopleCount >= 0 && data.peopleCount <= 20))
+        && data.sensorFusionStatus in ['webcam_only', 'corroborated', 'sensor_disagreement']
+        && (!('wearableSummary' in data) || (data.wearableSummary is string && data.wearableSummary.size() <= 240))
+        && (!('location' in data) || data.location == null || isValidFallLocation(data.location))
+        && (!('cancelledBy' in data) || (data.cancelledBy is string && data.cancelledBy.size() <= 100))
+        && (!('cancellationReason' in data) || (data.cancellationReason is string && data.cancellationReason.size() <= 300))
+        && (!('acknowledgedBy' in data) || (data.acknowledgedBy is string && data.acknowledgedBy.size() <= 100))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidInAppNotification(data, notificationId) {
+      return data.keys().hasAll([
+          'notificationId', 'alertId', 'patientId', 'ownerUid', 'recipientRole',
+          'severity', 'title', 'message', 'deliveryStatus', 'isSimulated',
+          'read', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'notificationId', 'alertId', 'patientId', 'ownerUid',
+          'primaryCaregiverUid', 'secondaryCaregiverUid', 'recipientRole',
+          'severity', 'title', 'message', 'deliveryStatus', 'isSimulated',
+          'read', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.notificationId) && data.notificationId == notificationId
+        && isValidId(data.alertId)
+        && isValidId(data.patientId)
+        && isValidId(data.ownerUid)
+        && (!('primaryCaregiverUid' in data) || (data.primaryCaregiverUid is string && data.primaryCaregiverUid.size() <= 128))
+        && (!('secondaryCaregiverUid' in data) || (data.secondaryCaregiverUid is string && data.secondaryCaregiverUid.size() <= 128))
+        && data.recipientRole in ['patient', 'caregiver', 'admin']
+        && data.severity in ['Warning', 'Critical']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 800
+        && data.deliveryStatus in ['delivered', 'simulated', 'failed', 'skipped_unauthorized']
+        && data.isSimulated is bool
+        && data.read is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSensorAvailability(avail) {
+      return avail is map
+        && avail.keys().hasOnly(['pulseOximeter', 'temperature', 'imu', 'ecg', 'oled', 'vibrationMotor'])
+        && (!('pulseOximeter' in avail) || avail.pulseOximeter is bool)
+        && (!('temperature' in avail) || avail.temperature is bool)
+        && (!('imu' in avail) || avail.imu is bool)
+        && (!('ecg' in avail) || avail.ecg is bool)
+        && (!('oled' in avail) || avail.oled is bool)
+        && (!('vibrationMotor' in avail) || avail.vibrationMotor is bool);
+    }
+
+    function isValidLastReadingSummary(summary) {
+      return summary is map
+        && summary.keys().hasOnly([
+          'heartRate', 'spo2', 'temperatureC', 'movementStatus',
+          'signalQuality', 'accelX', 'accelY', 'accelZ', 'timestamp'
+        ])
+        && (!('heartRate' in summary) || summary.heartRate == null || (summary.heartRate is number && summary.heartRate >= 0 && summary.heartRate <= 260))
+        && (!('spo2' in summary) || summary.spo2 == null || (summary.spo2 is number && summary.spo2 >= 0 && summary.spo2 <= 100))
+        && (!('temperatureC' in summary) || summary.temperatureC == null || (summary.temperatureC is number && summary.temperatureC >= 20 && summary.temperatureC <= 45))
+        && (!('movementStatus' in summary) || summary.movementStatus in ['resting', 'walking', 'active', 'fall_suspect', 'inactive'])
+        && (!('signalQuality' in summary) || summary.signalQuality in ['good', 'noisy', 'poor_contact'])
+        && (!('accelX' in summary) || summary.accelX == null || (summary.accelX is number && summary.accelX >= -100 && summary.accelX <= 100))
+        && (!('accelY' in summary) || summary.accelY == null || (summary.accelY is number && summary.accelY >= -100 && summary.accelY <= 100))
+        && (!('accelZ' in summary) || summary.accelZ == null || (summary.accelZ is number && summary.accelZ >= -100 && summary.accelZ <= 100))
+        && (!('timestamp' in summary) || (summary.timestamp is string && summary.timestamp.size() <= 60));
+    }
+
+    function isValidDevice(data, deviceId) {
+      return data.keys().hasAll([
+          'deviceId', 'label', 'patientId', 'ownerUid', 'boardType',
+          'pulseOxChipVariant', 'imuSensor', 'tempSensor', 'displayModule',
+          'hapticModule', 'samplingIntervalMs', 'connectionStatus',
+          'firmwareVersion', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'deviceId', 'label', 'patientId', 'ownerUid', 'primaryCaregiverUid', 'secondaryCaregiverUid',
+          'boardType', 'pulseOxChipVariant', 'ecgSensor', 'imuSensor', 'tempSensor', 'displayModule',
+          'hapticModule', 'samplingIntervalMs', 'connectionStatus', 'lastSeenAt',
+          'lastDataSource', 'sensorAvailability', 'lastReadingSummary',
+          'firmwareVersion', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.deviceId) && data.deviceId == deviceId
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 100
+        && isValidId(data.patientId)
+        && isValidId(data.ownerUid)
+        && (!('primaryCaregiverUid' in data) || (data.primaryCaregiverUid is string && data.primaryCaregiverUid.size() <= 128))
+        && (!('secondaryCaregiverUid' in data) || (data.secondaryCaregiverUid is string && data.secondaryCaregiverUid.size() <= 128))
+        && data.boardType is string && data.boardType.size() >= 1 && data.boardType.size() <= 60
+        && data.pulseOxChipVariant is string && data.pulseOxChipVariant.size() >= 1 && data.pulseOxChipVariant.size() <= 60
+        && (!('ecgSensor' in data) || (data.ecgSensor is string && data.ecgSensor.size() <= 60))
+        && data.imuSensor is string && data.imuSensor.size() >= 1 && data.imuSensor.size() <= 60
+        && data.tempSensor is string && data.tempSensor.size() >= 1 && data.tempSensor.size() <= 60
+        && data.displayModule is string && data.displayModule.size() >= 1 && data.displayModule.size() <= 60
+        && data.hapticModule is string && data.hapticModule.size() >= 1 && data.hapticModule.size() <= 60
+        && data.samplingIntervalMs is int && data.samplingIntervalMs >= 250 && data.samplingIntervalMs <= 60000
+        && data.connectionStatus in ['not_connected', 'streaming', 'offline']
+        && (!('lastSeenAt' in data) || (data.lastSeenAt is string && data.lastSeenAt.size() <= 60))
+        && (!('lastDataSource' in data) || data.lastDataSource in ['esp32_hardware', 'simulator', 'none'])
+        && (!('sensorAvailability' in data) || isValidSensorAvailability(data.sensorAvailability))
+        && (!('lastReadingSummary' in data) || isValidLastReadingSummary(data.lastReadingSummary))
+        && data.firmwareVersion is string && data.firmwareVersion.size() >= 1 && data.firmwareVersion.size() <= 40
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCarePermissions(perms) {
+      return perms is map
+        && perms.keys().hasOnly(['viewReadings', 'acknowledgeAlerts', 'receiveCalls'])
+        && (!('viewReadings' in perms) || perms.viewReadings is bool)
+        && (!('acknowledgeAlerts' in perms) || perms.acknowledgeAlerts is bool)
+        && (!('receiveCalls' in perms) || perms.receiveCalls is bool);
+    }
+
+    function isValidCareLink(data, linkId) {
+      return data.keys().hasAll([
+          'linkId', 'patientId', 'patientName', 'patientOwnerUid',
+          'caregiverUid', 'caregiverName', 'priority', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'linkId', 'patientId', 'patientName', 'patientOwnerUid',
+          'caregiverUid', 'caregiverName', 'priority', 'status',
+          'relationship', 'permissions', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.linkId) && data.linkId == linkId
+        && isValidId(data.patientId)
+        && data.patientName is string && data.patientName.size() >= 1 && data.patientName.size() <= 100
+        && isValidId(data.patientOwnerUid)
+        && isValidId(data.caregiverUid)
+        && data.caregiverName is string && data.caregiverName.size() >= 1 && data.caregiverName.size() <= 100
+        && data.priority in ['primary', 'secondary']
+        && data.status in ['active', 'pending', 'revoked']
+        && (!('relationship' in data) || (data.relationship is string && data.relationship.size() <= 60))
+        && (!('permissions' in data) || isValidCarePermissions(data.permissions))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBaselineStats(stats) {
+      return stats is map
+        && stats.keys().hasOnly([
+          'heartRateMean', 'heartRateMedian', 'heartRateStd',
+          'spo2Mean', 'spo2Median', 'spo2Std',
+          'tempMean', 'tempMedian', 'tempStd',
+          'accelMean', 'accelMedian', 'accelStd',
+          'activeHrMean', 'ecgBpmMean', 'sampleCount'
+        ])
+        && (!('heartRateMean' in stats) || (stats.heartRateMean is number && stats.heartRateMean >= 0 && stats.heartRateMean <= 260))
+        && (!('heartRateMedian' in stats) || (stats.heartRateMedian is number && stats.heartRateMedian >= 0 && stats.heartRateMedian <= 260))
+        && (!('heartRateStd' in stats) || (stats.heartRateStd is number && stats.heartRateStd >= 0 && stats.heartRateStd <= 100))
+        && (!('spo2Mean' in stats) || (stats.spo2Mean is number && stats.spo2Mean >= 0 && stats.spo2Mean <= 100))
+        && (!('spo2Median' in stats) || (stats.spo2Median is number && stats.spo2Median >= 0 && stats.spo2Median <= 100))
+        && (!('spo2Std' in stats) || (stats.spo2Std is number && stats.spo2Std >= 0 && stats.spo2Std <= 50))
+        && (!('tempMean' in stats) || (stats.tempMean is number && stats.tempMean >= 20 && stats.tempMean <= 45))
+        && (!('tempMedian' in stats) || (stats.tempMedian is number && stats.tempMedian >= 20 && stats.tempMedian <= 45))
+        && (!('tempStd' in stats) || (stats.tempStd is number && stats.tempStd >= 0 && stats.tempStd <= 20))
+        && (!('accelMean' in stats) || (stats.accelMean is number && stats.accelMean >= 0 && stats.accelMean <= 100))
+        && (!('accelMedian' in stats) || (stats.accelMedian is number && stats.accelMedian >= 0 && stats.accelMedian <= 100))
+        && (!('accelStd' in stats) || (stats.accelStd is number && stats.accelStd >= 0 && stats.accelStd <= 50))
+        && (!('activeHrMean' in stats) || (stats.activeHrMean is number && stats.activeHrMean >= 20 && stats.activeHrMean <= 260))
+        && (!('ecgBpmMean' in stats) || (stats.ecgBpmMean is number && stats.ecgBpmMean >= 20 && stats.ecgBpmMean <= 260))
+        && (!('sampleCount' in stats) || (stats.sampleCount is int && stats.sampleCount >= 0 && stats.sampleCount <= 1000000));
+    }
+
+    function isValidBaseline(data, baselineId) {
+      return data.keys().hasAll([
+          'baselineId', 'patientId', 'ownerUid', 'source', 'learningStatus',
+          'featureStatistics', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'baselineId', 'patientId', 'ownerUid', 'primaryCaregiverUid', 'secondaryCaregiverUid',
+          'source', 'learningStatus', 'featureStatistics', 'modelVersion',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.baselineId) && data.baselineId == baselineId
+        && isValidId(data.patientId)
+        && isValidId(data.ownerUid)
+        && (!('primaryCaregiverUid' in data) || (data.primaryCaregiverUid is string && data.primaryCaregiverUid.size() <= 128))
+        && (!('secondaryCaregiverUid' in data) || (data.secondaryCaregiverUid is string && data.secondaryCaregiverUid.size() <= 128))
+        && data.source in ['sample_demo', 'simulator', 'esp32_hardware']
+        && data.learningStatus in ['not_started', 'collecting', 'ready']
+        && isValidBaselineStats(data.featureStatistics)
+        && (!('modelVersion' in data) || (data.modelVersion is string && data.modelVersion.size() <= 80))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAnomalyEvent(data, eventId) {
+      return data.keys().hasAll([
+          'eventId', 'patientId', 'ownerUid', 'anomalyScore', 'alertLevel',
+          'featureSummary', 'source', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'eventId', 'patientId', 'ownerUid', 'primaryCaregiverUid', 'secondaryCaregiverUid',
+          'anomalyScore', 'alertLevel', 'featureSummary', 'contributingFeatures',
+          'modelVersion', 'source', 'createdAt'
+        ])
+        && isValidId(data.eventId) && data.eventId == eventId
+        && isValidId(data.patientId)
+        && isValidId(data.ownerUid)
+        && (!('primaryCaregiverUid' in data) || (data.primaryCaregiverUid is string && data.primaryCaregiverUid.size() <= 128))
+        && (!('secondaryCaregiverUid' in data) || (data.secondaryCaregiverUid is string && data.secondaryCaregiverUid.size() <= 128))
+        && data.anomalyScore is number && data.anomalyScore >= -10 && data.anomalyScore <= 10
+        && data.alertLevel in ['Normal', 'Warning', 'Critical']
+        && data.featureSummary is string && data.featureSummary.size() >= 1 && data.featureSummary.size() <= 500
+        && (!('contributingFeatures' in data) || (
+          data.contributingFeatures is list
+          && data.contributingFeatures.size() <= 8
+          && (data.contributingFeatures.size() == 0 || data.contributingFeatures[0] is string)
+        ))
+        && (!('modelVersion' in data) || (data.modelVersion is string && data.modelVersion.size() <= 80))
+        && data.source in ['sample_demo', 'simulator', 'esp32_hardware']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSystemAuditLog(data, logId) {
+      return data.keys().hasAll(['logId', 'userId', 'actorRole', 'eventType', 'summary', 'createdAt'])
+        && data.keys().hasOnly(['logId', 'userId', 'actorRole', 'eventType', 'summary', 'targetId', 'createdAt'])
+        && isValidId(data.logId) && data.logId == logId
+        && isValidId(data.userId)
+        && data.actorRole in ['patient', 'caregiver', 'admin']
+        && data.eventType is string && data.eventType.size() >= 1 && data.eventType.size() <= 80
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 400
+        && (!('targetId' in data) || (data.targetId is string && data.targetId.size() <= 128))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAlertLevelDetection(det) {
+      return det is map
+        && det.keys().hasAll([
+          'mappedMlAlertLevels', 'requireAnomalousStatus',
+          'anomalyScoreMaxThreshold', 'minZScore', 'minPersistenceWindows'
+        ])
+        && det.keys().hasOnly([
+          'mappedMlAlertLevels', 'requireAnomalousStatus',
+          'anomalyScoreMaxThreshold', 'minZScore', 'minPersistenceWindows'
+        ])
+        && det.mappedMlAlertLevels is list
+        && det.mappedMlAlertLevels.size() >= 1
+        && det.mappedMlAlertLevels.size() <= 3
+        && det.mappedMlAlertLevels.hasOnly(['Normal', 'Warning', 'Critical'])
+        && det.requireAnomalousStatus is bool
+        && det.anomalyScoreMaxThreshold is number && det.anomalyScoreMaxThreshold >= -1.0 && det.anomalyScoreMaxThreshold <= 0.5
+        && det.minZScore is number && det.minZScore >= 0.5 && det.minZScore <= 8.0
+        && det.minPersistenceWindows is int && det.minPersistenceWindows >= 1 && det.minPersistenceWindows <= 15;
+    }
+
+    function isValidAlertLevelEscalation(esc) {
+      return esc is map
+        && esc.keys().hasAll([
+          'action', 'notifyCaregivers', 'triggerAutomatedVoiceCall',
+          'requireExplicitConsent', 'caregiverPriorityTarget',
+          'maxCallAttempts', 'retryIntervalSec', 'escalateToNextCaregiver',
+          'duplicateSuppressionWindowSec', 'hapticPattern'
+        ])
+        && esc.keys().hasOnly([
+          'action', 'notifyCaregivers', 'triggerAutomatedVoiceCall',
+          'requireExplicitConsent', 'caregiverPriorityTarget',
+          'maxCallAttempts', 'retryIntervalSec', 'escalateToNextCaregiver',
+          'duplicateSuppressionWindowSec', 'hapticPattern'
+        ])
+        && esc.action in ['log_only', 'dashboard_notify', 'automated_voice_call', 'emergency_escalation_chain']
+        && esc.notifyCaregivers is bool
+        && esc.triggerAutomatedVoiceCall is bool
+        && esc.requireExplicitConsent is bool
+        && esc.caregiverPriorityTarget in ['none', 'primary', 'all_ordered']
+        && esc.maxCallAttempts is int && esc.maxCallAttempts >= 0 && esc.maxCallAttempts <= 5
+        && esc.retryIntervalSec is int && esc.retryIntervalSec >= 10 && esc.retryIntervalSec <= 600
+        && esc.escalateToNextCaregiver is bool
+        && esc.duplicateSuppressionWindowSec is int && esc.duplicateSuppressionWindowSec >= 0 && esc.duplicateSuppressionWindowSec <= 3600
+        && esc.hapticPattern in ['none', 'single_pulse', 'triple_alert'];
+    }
+
+    function isValidAlertLevelRule(rule, expectedLevel) {
+      return rule is map
+        && rule.keys().hasAll(['level', 'label', 'description', 'enabled', 'detection', 'escalation'])
+        && rule.keys().hasOnly(['level', 'label', 'description', 'enabled', 'detection', 'escalation'])
+        && rule.level == expectedLevel
+        && rule.label is string && rule.label.size() >= 1 && rule.label.size() <= 80
+        && rule.description is string && rule.description.size() >= 1 && rule.description.size() <= 300
+        && rule.enabled is bool
+        && isValidAlertLevelDetection(rule.detection)
+        && isValidAlertLevelEscalation(rule.escalation);
+    }
+
+    function isValidAlertLevelsPolicy(policy) {
+      return policy is map
+        && policy.keys().hasAll(['version', 'levels'])
+        && policy.keys().hasOnly(['version', 'updatedAt', 'updatedByUid', 'levels'])
+        && policy.version is int && policy.version >= 1 && policy.version <= 100
+        && (!('updatedAt' in policy) || (policy.updatedAt is string && policy.updatedAt.size() <= 64))
+        && (!('updatedByUid' in policy) || (policy.updatedByUid is string && policy.updatedByUid.size() <= 128))
+        && policy.levels is map
+        && policy.levels.keys().hasAll(['Low', 'Medium', 'High'])
+        && policy.levels.keys().hasOnly(['Low', 'Medium', 'High'])
+        && isValidAlertLevelRule(policy.levels.Low, 'Low')
+        && isValidAlertLevelRule(policy.levels.Medium, 'Medium')
+        && isValidAlertLevelRule(policy.levels.High, 'High');
+    }
+
+    function isValidSystemSetting(data, settingId) {
+      return data.keys().hasAll([
+          'settingId', 'escalationTimeoutSec', 'baselineMinSamples',
+          'samplingDefaultMs', 'updatedByUid', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'settingId', 'escalationTimeoutSec', 'baselineMinSamples',
+          'samplingDefaultMs', 'warningPersistenceWindows', 'criticalPersistenceWindows',
+          'anomalyScoreThreshold', 'retryIntervalSec', 'maxCallAttempts',
+          'fallbackNotificationEnabled', 'alertLevels', 'updatedByUid', 'updatedAt'
+        ])
+        && isValidId(data.settingId) && data.settingId == settingId
+        && data.escalationTimeoutSec is int && data.escalationTimeoutSec >= 10 && data.escalationTimeoutSec <= 600
+        && data.baselineMinSamples is int && data.baselineMinSamples >= 5 && data.baselineMinSamples <= 5000
+        && data.samplingDefaultMs is int && data.samplingDefaultMs >= 500 && data.samplingDefaultMs <= 60000
+        && (!('warningPersistenceWindows' in data) || (data.warningPersistenceWindows is int && data.warningPersistenceWindows >= 1 && data.warningPersistenceWindows <= 10))
+        && (!('criticalPersistenceWindows' in data) || (data.criticalPersistenceWindows is int && data.criticalPersistenceWindows >= 1 && data.criticalPersistenceWindows <= 15))
+        && (!('anomalyScoreThreshold' in data) || (data.anomalyScoreThreshold is number && data.anomalyScoreThreshold >= -1.0 && data.anomalyScoreThreshold <= 0.5))
+        && (!('retryIntervalSec' in data) || (data.retryIntervalSec is int && data.retryIntervalSec >= 10 && data.retryIntervalSec <= 600))
+        && (!('maxCallAttempts' in data) || (data.maxCallAttempts is int && data.maxCallAttempts >= 1 && data.maxCallAttempts <= 5))
+        && (!('fallbackNotificationEnabled' in data) || data.fallbackNotificationEnabled is bool)
+        && (!('alertLevels' in data) || isValidAlertLevelsPolicy(data.alertLevels))
+        && isValidId(data.updatedByUid)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCaregiverVoiceContact(data, contactId) {
+      return data.keys().hasAll([
+          'contactId', 'patientId', 'patientOwnerUid', 'caregiverName',
+          'maskedPhone', 'priority', 'priorityRank', 'preferredLanguage',
+          'explicitCallConsent', 'authorizedForPatientIdentity',
+          'authorizedForHealthReadings', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'contactId', 'patientId', 'patientOwnerUid', 'caregiverUid', 'caregiverName',
+          'maskedPhone', 'priority', 'priorityRank', 'preferredLanguage',
+          'explicitCallConsent', 'consentRecordedAt', 'authorizedForPatientIdentity',
+          'authorizedForHealthReadings', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.contactId) && data.contactId == contactId
+        && isValidId(data.patientId)
+        && isValidId(data.patientOwnerUid)
+        && (!('caregiverUid' in data) || (data.caregiverUid is string && data.caregiverUid.size() <= 128))
+        && data.caregiverName is string && data.caregiverName.size() >= 1 && data.caregiverName.size() <= 100
+        && data.maskedPhone is string && data.maskedPhone.size() >= 4 && data.maskedPhone.size() <= 32
+        && data.priority in ['primary', 'secondary', 'alternate']
+        && data.priorityRank is int && data.priorityRank >= 1 && data.priorityRank <= 10
+        && data.preferredLanguage in ['en', 'kn', 'hi']
+        && data.explicitCallConsent is bool
+        && (!('consentRecordedAt' in data) || (data.consentRecordedAt is string && data.consentRecordedAt.size() <= 64))
+        && data.authorizedForPatientIdentity is bool
+        && data.authorizedForHealthReadings is bool
+        && data.status in ['active', 'paused']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidVoiceCallRecord(data, callId) {
+      return data.keys().hasAll([
+          'callId', 'patientId', 'patientOwnerUid', 'patientName',
+          'alertSeverity', 'reasonForCalling', 'relevantReading',
+          'caregiverName', 'caregiverPriority', 'maskedPhone',
+          'callStatus', 'selectedLanguage', 'caregiverResponse',
+          'durationSec', 'retryCount', 'escalationStatus', 'followUpAction',
+          'isTestCall', 'startedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'callId', 'callSid', 'escalationId', 'alertId', 'patientId',
+          'patientOwnerUid', 'patientName', 'alertSeverity', 'reasonForCalling',
+          'relevantReading', 'caregiverContactId', 'caregiverName', 'caregiverPriority',
+          'maskedPhone', 'callStatus', 'selectedLanguage', 'caregiverResponse',
+          'responseSummary', 'durationSec', 'retryCount', 'escalationStatus',
+          'followUpAction', 'isTestCall', 'startedAt', 'endedAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.callId) && data.callId == callId
+        && (!('callSid' in data) || (data.callSid is string && data.callSid.size() <= 64))
+        && (!('escalationId' in data) || (data.escalationId is string && data.escalationId.size() <= 128))
+        && (!('alertId' in data) || (data.alertId is string && data.alertId.size() <= 128))
+        && isValidId(data.patientId)
+        && isValidId(data.patientOwnerUid)
+        && data.patientName is string && data.patientName.size() >= 1 && data.patientName.size() <= 100
+        && data.alertSeverity in ['Low', 'Medium', 'High', 'Test']
+        && data.reasonForCalling is string && data.reasonForCalling.size() >= 1 && data.reasonForCalling.size() <= 400
+        && data.relevantReading is string && data.relevantReading.size() >= 1 && data.relevantReading.size() <= 200
+        && (!('caregiverContactId' in data) || (data.caregiverContactId is string && data.caregiverContactId.size() <= 128))
+        && data.caregiverName is string && data.caregiverName.size() >= 1 && data.caregiverName.size() <= 100
+        && data.caregiverPriority in ['primary', 'secondary', 'alternate', 'test']
+        && data.maskedPhone is string && data.maskedPhone.size() >= 4 && data.maskedPhone.size() <= 32
+        && data.callStatus in ['Initiated', 'Ringing', 'Answered', 'Unanswered', 'Busy', 'Failed', 'Completed']
+        && data.selectedLanguage in ['en', 'kn', 'hi']
+        && data.caregiverResponse in [
+          'Pending', 'Will check immediately', 'Already checking on the patient',
+          'Patient is safe', 'Unable to assist', 'Not available',
+          'Requests another contact', 'Needs emergency assistance', 'Unclear response'
+        ]
+        && (!('responseSummary' in data) || (data.responseSummary is string && data.responseSummary.size() <= 500))
+        && data.durationSec is int && data.durationSec >= 0 && data.durationSec <= 86400
+        && data.retryCount is int && data.retryCount >= 0 && data.retryCount <= 20
+        && data.escalationStatus in [
+          'none', 'calling_primary', 'retrying', 'escalated_secondary',
+          'acknowledged', 'human_follow_up_required', 'fallback_notified'
+        ]
+        && data.followUpAction is string && data.followUpAction.size() <= 300
+        && data.isTestCall is bool
+        && data.startedAt is string && data.startedAt.size() >= 1 && data.startedAt.size() <= 64
+        && (!('endedAt' in data) || (data.endedAt is string && data.endedAt.size() <= 64))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidVoiceEscalationEvent(data, escalationId) {
+      return data.keys().hasAll([
+          'escalationId', 'alertId', 'patientId', 'patientOwnerUid',
+          'patientName', 'severity', 'escalationStatus', 'activeAttemptCount',
+          'maxAttempts', 'retryIntervalSec', 'fallbackTriggered',
+          'humanFollowUpRequired', 'emergencyActive', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'escalationId', 'alertId', 'patientId', 'patientOwnerUid',
+          'patientName', 'severity', 'triggerMetric', 'readingSummary',
+          'reasonForCalling', 'escalationStatus', 'activeAttemptCount',
+          'maxAttempts', 'retryIntervalSec', 'currentCaregiverName',
+          'currentCaregiverPriority', 'caregiverResponse', 'fallbackTriggered',
+          'humanFollowUpRequired', 'emergencyActive', 'followUpAction',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.escalationId) && data.escalationId == escalationId
+        && isValidId(data.alertId)
+        && isValidId(data.patientId)
+        && isValidId(data.patientOwnerUid)
+        && data.patientName is string && data.patientName.size() >= 1 && data.patientName.size() <= 100
+        && data.severity in ['Low', 'Medium', 'High']
+        && (!('triggerMetric' in data) || (data.triggerMetric is string && data.triggerMetric.size() <= 120))
+        && (!('readingSummary' in data) || (data.readingSummary is string && data.readingSummary.size() <= 200))
+        && (!('reasonForCalling' in data) || (data.reasonForCalling is string && data.reasonForCalling.size() <= 400))
+        && data.escalationStatus in [
+          'logged_low', 'notified_medium', 'calling_primary', 'retrying',
+          'escalated_secondary', 'acknowledged', 'human_follow_up_required',
+          'fallback_notified', 'resolved'
+        ]
+        && data.activeAttemptCount is int && data.activeAttemptCount >= 0 && data.activeAttemptCount <= 50
+        && data.maxAttempts is int && data.maxAttempts >= 1 && data.maxAttempts <= 10
+        && data.retryIntervalSec is int && data.retryIntervalSec >= 10 && data.retryIntervalSec <= 600
+        && (!('currentCaregiverName' in data) || (data.currentCaregiverName is string && data.currentCaregiverName.size() <= 100))
+        && (!('currentCaregiverPriority' in data) || (data.currentCaregiverPriority is string && data.currentCaregiverPriority.size() <= 32))
+        && (!('caregiverResponse' in data) || (data.caregiverResponse is string && data.caregiverResponse.size() <= 80))
+        && data.fallbackTriggered is bool
+        && data.humanFollowUpRequired is bool
+        && data.emergencyActive is bool
+        && (!('followUpAction' in data) || (data.followUpAction is string && data.followUpAction.size() <= 300))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidVoiceAuditLog(data, auditId) {
+      return data.keys().hasAll([
+          'auditId', 'eventType', 'patientId', 'patientOwnerUid',
+          'actorUid', 'summary', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'auditId', 'eventType', 'patientId', 'patientOwnerUid',
+          'callId', 'escalationId', 'actorUid', 'summary', 'createdAt'
+        ])
+        && isValidId(data.auditId) && data.auditId == auditId
+        && data.eventType is string && data.eventType.size() >= 1 && data.eventType.size() <= 80
+        && isValidId(data.patientId)
+        && isValidId(data.patientOwnerUid)
+        && (!('callId' in data) || (data.callId is string && data.callId.size() <= 128))
+        && (!('escalationId' in data) || (data.escalationId is string && data.escalationId.size() <= 128))
+        && isValidId(data.actorUid)
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 500
+        && data.createdAt is timestamp;
+    }
+
+    function isPatientParentParticipant(patientId) {
+      let patientDoc = get(/databases/$(database)/documents/patients/$(patientId));
+      return patientDoc.data.ownerUid == request.auth.uid
+        || patientDoc.data.primaryCaregiverUid == request.auth.uid
+        || patientDoc.data.secondaryCaregiverUid == request.auth.uid;
+    }
+
+    // --- Collection Rules ---
+    match /admins/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUserProfile(incoming(), userId)
+        && (incoming().role in ['patient', 'caregiver'] || isAdmin())
+        && (!('accountStatus' in incoming()) || incoming().accountStatus == 'active' || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            request.auth.uid == userId
+            && incoming().role == existing().role
+            && (!('accountStatus' in incoming()) || ('accountStatus' in existing() && incoming().accountStatus == existing().accountStatus))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'profileSettings', 'updatedAt'])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+
+      match /private/{docId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(docId) && (request.auth.uid == userId || isAdmin());
+        allow list: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+        allow create: if isSignedIn() && isValidId(userId) && isValidId(docId)
+          && (request.auth.uid == userId || isAdmin())
+          && isValidPrivateContact(incoming(), userId)
+          && incoming().updatedAt == request.time;
+        allow update: if isSignedIn() && isValidId(userId) && isValidId(docId)
+          && (request.auth.uid == userId || isAdmin())
+          && isValidPrivateContact(incoming(), userId)
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'emergencyNotes', 'updatedAt']);
+        allow delete: if isAdmin() && isValidId(userId) && isValidId(docId);
+      }
+    }
+
+    match /patients/{patientId} {
+      allow get: if isSignedIn() && isValidId(patientId) && (
+        existing().ownerUid == request.auth.uid ||
+        existing().primaryCaregiverUid == request.auth.uid ||
+        existing().secondaryCaregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.primaryCaregiverUid == request.auth.uid ||
+        resource.data.secondaryCaregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && isValidId(patientId)
+        && isValidPatient(incoming(), patientId)
+        && (incoming().ownerUid == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(patientId)
+        && isValidPatient(incoming(), patientId)
+        && incoming().patientId == existing().patientId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'ageGroup', 'baselineStatus', 'baselineSamplesCount',
+              'baselineHeartRateMean', 'baselineSpo2Mean', 'baselineTempMean',
+              'baselineSource', 'baselineModelTrained', 'baselineModelVersion',
+              'baselineEcgBpmMean', 'baselineActiveHrMean',
+              'primaryCaregiverUid', 'secondaryCaregiverUid',
+              'primaryCaregiverName', 'secondaryCaregiverName', 'dataMode', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(patientId);
+
+      match /readings/{readingId} {
+        allow get: if isSignedIn() && isValidId(patientId) && isValidId(readingId) && (
+          isPatientParentParticipant(patientId) || isAdmin()
+        );
+        allow list: if isSignedIn() && (
+          resource.data.ownerUid == request.auth.uid ||
+          resource.data.primaryCaregiverUid == request.auth.uid ||
+          resource.data.secondaryCaregiverUid == request.auth.uid ||
+          isAdmin()
+        );
+        allow create: if isSignedIn() && isValidId(patientId) && isValidId(readingId)
+          && isValidReading(incoming(), patientId, readingId)
+          && exists(/databases/$(database)/documents/patients/$(patientId))
+          && (
+            (incoming().ownerUid == request.auth.uid && get(/databases/$(database)/documents/patients/$(patientId)).data.ownerUid == request.auth.uid)
+            || isAdmin()
+          )
+          && incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isAdmin() && isValidId(patientId) && isValidId(readingId);
+      }
+
+      match /alerts/{alertId} {
+        allow get: if isSignedIn() && isValidId(patientId) && isValidId(alertId) && (
+          isPatientParentParticipant(patientId) || isAdmin()
+        );
+        allow list: if isSignedIn() && (
+          resource.data.ownerUid == request.auth.uid ||
+          resource.data.primaryCaregiverUid == request.auth.uid ||
+          resource.data.secondaryCaregiverUid == request.auth.uid ||
+          isAdmin()
+        );
+        allow create: if isSignedIn() && isValidId(patientId) && isValidId(alertId)
+          && isValidAlert(incoming(), patientId, alertId)
+          && exists(/databases/$(database)/documents/patients/$(patientId))
+          && (
+            (incoming().ownerUid == request.auth.uid && get(/databases/$(database)/documents/patients/$(patientId)).data.ownerUid == request.auth.uid)
+            || isAdmin()
+          )
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isSignedIn() && isValidId(patientId) && isValidId(alertId)
+          && isValidAlert(incoming(), patientId, alertId)
+          && incoming().alertId == existing().alertId
+          && incoming().patientId == existing().patientId
+          && incoming().ownerUid == existing().ownerUid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            isAdmin() || (
+              existing().status != 'resolved'
+              && isPatientParentParticipant(patientId)
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'status', 'acknowledgedByUid', 'acknowledgedByName',
+                'followUpAction', 'callEscalationStatus', 'callLog',
+                'patientAcknowledged', 'falseAlertReported', 'falseAlertReason',
+                'unreadByPatient', 'unreadByCaregiver', 'notificationStatus',
+                'escalationStatus', 'updatedAt'
+              ])
+            )
+          );
+        allow delete: if isAdmin() && isValidId(patientId) && isValidId(alertId);
+      }
+
+      match /fallEvents/{eventId} {
+        allow get: if isSignedIn() && isValidId(patientId) && isValidId(eventId) && (
+          isPatientParentParticipant(patientId) || isAdmin()
+        );
+        allow list: if isSignedIn() && (
+          resource.data.ownerUid == request.auth.uid ||
+          resource.data.primaryCaregiverUid == request.auth.uid ||
+          resource.data.secondaryCaregiverUid == request.auth.uid ||
+          isAdmin()
+        );
+        allow create: if isSignedIn() && isValidId(patientId) && isValidId(eventId)
+          && isValidFallEvent(incoming(), patientId, eventId)
+          && exists(/databases/$(database)/documents/patients/$(patientId))
+          && (
+            (incoming().ownerUid == request.auth.uid && get(/databases/$(database)/documents/patients/$(patientId)).data.ownerUid == request.auth.uid)
+            || isAdmin()
+          )
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isSignedIn() && isValidId(patientId) && isValidId(eventId)
+          && isValidFallEvent(incoming(), patientId, eventId)
+          && incoming().eventId == existing().eventId
+          && incoming().patientId == existing().patientId
+          && incoming().ownerUid == existing().ownerUid
+          && incoming().alertId == existing().alertId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            isAdmin() || (
+              isPatientParentParticipant(patientId)
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'status', 'cancelledBy', 'cancellationReason', 'acknowledgedBy', 'updatedAt'
+              ])
+            )
+          );
+        allow delete: if isAdmin() && isValidId(patientId) && isValidId(eventId);
+      }
+    }
+
+    match /devices/{deviceId} {
+      allow get: if isSignedIn() && isValidId(deviceId) && (
+        existing().ownerUid == request.auth.uid ||
+        existing().primaryCaregiverUid == request.auth.uid ||
+        existing().secondaryCaregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.primaryCaregiverUid == request.auth.uid ||
+        resource.data.secondaryCaregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && isValidId(deviceId)
+        && isValidDevice(incoming(), deviceId)
+        && (incoming().ownerUid == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(deviceId)
+        && isValidDevice(incoming(), deviceId)
+        && incoming().deviceId == existing().deviceId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'label', 'pulseOxChipVariant', 'ecgSensor', 'tempSensor', 'samplingIntervalMs',
+              'connectionStatus', 'lastSeenAt', 'lastDataSource', 'sensorAvailability',
+              'lastReadingSummary', 'firmwareVersion', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isSignedIn() && isValidId(deviceId) && (existing().ownerUid == request.auth.uid || isAdmin());
+    }
+
+    match /careLinks/{linkId} {
+      allow get: if isSignedIn() && isValidId(linkId) && (
+        existing().patientOwnerUid == request.auth.uid ||
+        existing().caregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.patientOwnerUid == request.auth.uid ||
+        resource.data.caregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && isValidId(linkId)
+        && isValidCareLink(incoming(), linkId)
+        && exists(/databases/$(database)/documents/patients/$(incoming().patientId))
+        && (incoming().patientOwnerUid == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(linkId)
+        && isValidCareLink(incoming(), linkId)
+        && incoming().linkId == existing().linkId
+        && incoming().patientId == existing().patientId
+        && incoming().patientOwnerUid == existing().patientOwnerUid
+        && incoming().caregiverUid == existing().caregiverUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            (existing().patientOwnerUid == request.auth.uid || existing().caregiverUid == request.auth.uid)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'priority', 'relationship', 'permissions', 'updatedAt'])
+          )
+        );
+      allow delete: if isSignedIn() && isValidId(linkId) && (existing().patientOwnerUid == request.auth.uid || isAdmin());
+    }
+
+    match /baselines/{baselineId} {
+      allow get: if isSignedIn() && isValidId(baselineId) && (
+        existing().ownerUid == request.auth.uid ||
+        existing().primaryCaregiverUid == request.auth.uid ||
+        existing().secondaryCaregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.primaryCaregiverUid == request.auth.uid ||
+        resource.data.secondaryCaregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && isValidId(baselineId)
+        && isValidBaseline(incoming(), baselineId)
+        && exists(/databases/$(database)/documents/patients/$(incoming().patientId))
+        && (incoming().ownerUid == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(baselineId)
+        && isValidBaseline(incoming(), baselineId)
+        && incoming().baselineId == existing().baselineId
+        && incoming().patientId == existing().patientId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'learningStatus', 'featureStatistics', 'modelVersion',
+              'primaryCaregiverUid', 'secondaryCaregiverUid', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(baselineId);
+    }
+
+    match /anomaly_events/{eventId} {
+      allow get: if isSignedIn() && isValidId(eventId) && (
+        existing().ownerUid == request.auth.uid ||
+        existing().primaryCaregiverUid == request.auth.uid ||
+        existing().secondaryCaregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.primaryCaregiverUid == request.auth.uid ||
+        resource.data.secondaryCaregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && isValidId(eventId)
+        && isValidAnomalyEvent(incoming(), eventId)
+        && exists(/databases/$(database)/documents/patients/$(incoming().patientId))
+        && (incoming().ownerUid == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(eventId);
+    }
+
+    match /audit_logs/{logId} {
+      allow get: if isSignedIn() && isValidId(logId) && (
+        existing().userId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow create: if isSignedIn() && isValidId(logId)
+        && isValidSystemAuditLog(incoming(), logId)
+        && (incoming().userId == request.auth.uid || isAdmin())
+        && (incoming().actorRole in ['patient', 'caregiver'] || isAdmin())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(logId);
+    }
+
+    match /systemSettings/{settingId} {
+      allow get: if isSignedIn() && isValidId(settingId);
+      allow list: if isSignedIn();
+      allow create: if isAdmin() && isValidId(settingId)
+        && isValidSystemSetting(incoming(), settingId)
+        && incoming().updatedAt == request.time;
+      allow update: if isAdmin() && isValidId(settingId)
+        && isValidSystemSetting(incoming(), settingId)
+        && incoming().settingId == existing().settingId
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(settingId);
+    }
+
+    match /caregiverContacts/{contactId} {
+      allow get: if isSignedIn() && isValidId(contactId) && (
+        existing().patientOwnerUid == request.auth.uid ||
+        existing().caregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.patientOwnerUid == request.auth.uid ||
+        resource.data.caregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isVerified() && isValidId(contactId)
+        && isValidCaregiverVoiceContact(incoming(), contactId)
+        && exists(/databases/$(database)/documents/patients/$(incoming().patientId))
+        && (
+          (incoming().patientOwnerUid == request.auth.uid
+            && get(/databases/$(database)/documents/patients/$(incoming().patientId)).data.ownerUid == request.auth.uid)
+          || isAdmin()
+        )
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(contactId)
+        && isValidCaregiverVoiceContact(incoming(), contactId)
+        && incoming().contactId == existing().contactId
+        && incoming().patientId == existing().patientId
+        && incoming().patientOwnerUid == existing().patientOwnerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            existing().patientOwnerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'caregiverName', 'maskedPhone', 'priority', 'priorityRank',
+              'preferredLanguage', 'explicitCallConsent', 'consentRecordedAt',
+              'authorizedForPatientIdentity', 'authorizedForHealthReadings',
+              'status', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isVerified() && isValidId(contactId) && (
+        existing().patientOwnerUid == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /voiceCallHistory/{callId} {
+      allow get: if isSignedIn() && isValidId(callId) && (
+        existing().patientOwnerUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.patientOwnerUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isVerified() && isValidId(callId)
+        && isValidVoiceCallRecord(incoming(), callId)
+        && (incoming().patientOwnerUid == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(callId)
+        && isValidVoiceCallRecord(incoming(), callId)
+        && incoming().callId == existing().callId
+        && incoming().patientId == existing().patientId
+        && incoming().patientOwnerUid == existing().patientOwnerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            existing().patientOwnerUid == request.auth.uid
+            && !(existing().callStatus in ['Completed', 'Failed'])
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'callSid', 'callStatus', 'selectedLanguage', 'caregiverResponse',
+              'responseSummary', 'durationSec', 'retryCount', 'escalationStatus',
+              'followUpAction', 'endedAt', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(callId);
+    }
+
+    match /voiceEscalations/{escalationId} {
+      allow get: if isSignedIn() && isValidId(escalationId) && (
+        existing().patientOwnerUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.patientOwnerUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isVerified() && isValidId(escalationId)
+        && isValidVoiceEscalationEvent(incoming(), escalationId)
+        && (incoming().patientOwnerUid == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(escalationId)
+        && isValidVoiceEscalationEvent(incoming(), escalationId)
+        && incoming().escalationId == existing().escalationId
+        && incoming().alertId == existing().alertId
+        && incoming().patientId == existing().patientId
+        && incoming().patientOwnerUid == existing().patientOwnerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            existing().patientOwnerUid == request.auth.uid
+            && existing().escalationStatus != 'resolved'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'escalationStatus', 'activeAttemptCount', 'currentCaregiverName',
+              'currentCaregiverPriority', 'caregiverResponse', 'fallbackTriggered',
+              'humanFollowUpRequired', 'emergencyActive', 'followUpAction', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(escalationId);
+    }
+
+    match /voiceAuditLogs/{auditId} {
+      allow get: if isSignedIn() && isValidId(auditId) && (
+        existing().patientOwnerUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.patientOwnerUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isVerified() && isValidId(auditId)
+        && isValidVoiceAuditLog(incoming(), auditId)
+        && incoming().actorUid == request.auth.uid
+        && (incoming().patientOwnerUid == request.auth.uid || isAdmin())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(auditId);
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && isValidId(notificationId) && (
+        existing().ownerUid == request.auth.uid ||
+        existing().primaryCaregiverUid == request.auth.uid ||
+        existing().secondaryCaregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.primaryCaregiverUid == request.auth.uid ||
+        resource.data.secondaryCaregiverUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && isValidId(notificationId)
+        && isValidInAppNotification(incoming(), notificationId)
+        && exists(/databases/$(database)/documents/patients/$(incoming().patientId))
+        && (
+          (incoming().ownerUid == request.auth.uid && get(/databases/$(database)/documents/patients/$(incoming().patientId)).data.ownerUid == request.auth.uid)
+          || isAdmin()
+        )
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(notificationId)
+        && isValidInAppNotification(incoming(), notificationId)
+        && incoming().notificationId == existing().notificationId
+        && incoming().alertId == existing().alertId
+        && incoming().patientId == existing().patientId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            (
+              existing().ownerUid == request.auth.uid ||
+              existing().primaryCaregiverUid == request.auth.uid ||
+              existing().secondaryCaregiverUid == request.auth.uid
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly(['read', 'updatedAt'])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(notificationId);
+    }
+  }
+}

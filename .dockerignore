@@ -1,0 +1,16 @@
+node_modules/
+ml-service/.venv/
+ml-service/models/
+ml-service/graphs/
+ml-service/__pycache__/
+**/__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.map
+.git/
+.env
+.env.*
+!.env.example
+data/
+coverage/

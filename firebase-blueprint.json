@@ -1,0 +1,720 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Non-sensitive user profile, settings, and RBAC role assignment for AROVA.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "role": { "type": "string", "enum": ["patient", "caregiver", "admin"] },
+        "accountStatus": { "type": "string", "enum": ["active", "suspended"] },
+        "profileSettings": { "type": "object", "description": "User monitoring and notification preferences." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "role", "createdAt", "updatedAt"]
+    },
+    "UserPrivateContact": {
+      "title": "UserPrivateContact",
+      "description": "Isolated PII contact details for a user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "emergencyNotes": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "PatientRecord": {
+      "title": "PatientRecord",
+      "description": "Patient monitoring profile, personal baseline metrics, and caregiver assignments.",
+      "type": "object",
+      "properties": {
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "ageGroup": { "type": "string", "maxLength": 40 },
+        "baselineStatus": { "type": "string", "enum": ["not_started", "collecting", "ready"] },
+        "baselineSamplesCount": { "type": "integer" },
+        "baselineHeartRateMean": { "type": "number" },
+        "baselineSpo2Mean": { "type": "number" },
+        "baselineTempMean": { "type": "number" },
+        "baselineSource": { "type": "string", "enum": ["sample_demo", "simulator", "esp32_hardware"] },
+        "baselineModelTrained": { "type": "boolean" },
+        "baselineModelVersion": { "type": "string", "maxLength": 80 },
+        "baselineEcgBpmMean": { "type": "number" },
+        "baselineActiveHrMean": { "type": "number" },
+        "primaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "secondaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "primaryCaregiverName": { "type": "string", "maxLength": 100 },
+        "secondaryCaregiverName": { "type": "string", "maxLength": 100 },
+        "dataMode": { "type": "string", "enum": ["sample", "live"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "patientId",
+        "ownerUid",
+        "displayName",
+        "baselineStatus",
+        "baselineSamplesCount",
+        "dataMode",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "VitalReading": {
+      "title": "VitalReading",
+      "description": "Immutable vital-sign, motion, and ECG waveform telemetry record from wearable or simulator.",
+      "type": "object",
+      "properties": {
+        "readingId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "deviceId": { "type": "string", "maxLength": 128 },
+        "primaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "secondaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "heartRate": { "type": ["number", "null"] },
+        "spo2": { "type": ["number", "null"] },
+        "temperatureC": { "type": ["number", "null"] },
+        "movementStatus": { "type": "string", "enum": ["resting", "walking", "active", "fall_suspect", "inactive"] },
+        "accelMagnitude": { "type": "number" },
+        "gyroMagnitude": { "type": "number" },
+        "accelX": { "type": ["number", "null"] },
+        "accelY": { "type": ["number", "null"] },
+        "accelZ": { "type": ["number", "null"] },
+        "gyroX": { "type": ["number", "null"] },
+        "gyroY": { "type": ["number", "null"] },
+        "gyroZ": { "type": ["number", "null"] },
+        "possibleFallDetected": { "type": "boolean" },
+        "ecgSamples": { "type": "array" },
+        "ecgSamplingRate": { "type": "number" },
+        "ecgSignalQuality": { "type": "string", "enum": ["good", "noisy", "lead_off", "unavailable"] },
+        "ecgLeadOff": { "type": "boolean" },
+        "ecgTimestamp": { "type": "string", "maxLength": 60 },
+        "ecgHeartRateBpm": { "type": "number" },
+        "signalQuality": { "type": "string", "enum": ["good", "noisy", "poor_contact"] },
+        "anomalyStatus": { "type": "string", "enum": ["insufficient_baseline", "paused_poor_quality", "normal", "anomalous"] },
+        "anomalyScore": { "type": "number" },
+        "alertLevel": { "type": "string", "enum": ["Normal", "Warning", "Critical"] },
+        "contributingFeatures": { "type": "array" },
+        "persistenceCount": { "type": "integer" },
+        "modelVersion": { "type": "string", "maxLength": 80 },
+        "source": { "type": "string", "enum": ["sample_demo", "simulator", "esp32_hardware"] },
+        "mlEngine": { "type": "string", "enum": ["unconnected_rule_check", "python_isolation_forest"] },
+        "explanation": { "type": "string", "maxLength": 600 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "readingId",
+        "patientId",
+        "ownerUid",
+        "heartRate",
+        "spo2",
+        "temperatureC",
+        "movementStatus",
+        "signalQuality",
+        "anomalyScore",
+        "alertLevel",
+        "source",
+        "mlEngine",
+        "explanation",
+        "createdAt"
+      ]
+    },
+    "AlertRecord": {
+      "title": "AlertRecord",
+      "description": "Early warning alert, caregiver acknowledgement, and escalation call log.",
+      "type": "object",
+      "properties": {
+        "alertId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "primaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "secondaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "level": { "type": "string", "enum": ["Warning", "Critical"] },
+        "status": { "type": "string", "enum": ["active", "acknowledged", "resolved"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "explanation": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "triggeredMetrics": { "type": "array" },
+        "source": { "type": "string", "enum": ["sample_demo", "simulator", "esp32_hardware", "webcam_pose", "demo_simulation"] },
+        "fallEventId": { "type": "string", "maxLength": 128 },
+        "sensorFusionStatus": { "type": "string", "enum": ["webcam_only", "corroborated", "sensor_disagreement"] },
+        "acknowledgedByUid": { "type": "string", "maxLength": 128 },
+        "acknowledgedByName": { "type": "string", "maxLength": 100 },
+        "followUpAction": { "type": "string", "maxLength": 500 },
+        "anomalyScore": { "type": "number" },
+        "prototypeNotice": { "type": "string", "maxLength": 240 },
+        "relevantReadingsSummary": { "type": "string", "maxLength": 240 },
+        "patientAcknowledged": { "type": "boolean" },
+        "falseAlertReported": { "type": "boolean" },
+        "falseAlertReason": { "type": "string", "maxLength": 300 },
+        "unreadByPatient": { "type": "boolean" },
+        "unreadByCaregiver": { "type": "boolean" },
+        "notificationStatus": { "type": "string", "enum": ["pending", "simulated", "delivered", "partial_failure", "failed"] },
+        "escalationStatus": { "type": "string", "maxLength": 64 },
+        "callEscalationStatus": {
+          "type": "string",
+          "enum": ["not_triggered", "provider_unconfigured", "calling_primary", "primary_answered", "escalated_secondary", "completed"]
+        },
+        "callLog": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "alertId",
+        "patientId",
+        "ownerUid",
+        "level",
+        "status",
+        "title",
+        "explanation",
+        "triggeredMetrics",
+        "source",
+        "callEscalationStatus",
+        "callLog",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "WearableDevice": {
+      "title": "WearableDevice",
+      "description": "Registered ESP32 wearable hardware unit and configurable sensor mapping.",
+      "type": "object",
+      "properties": {
+        "deviceId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "boardType": { "type": "string", "maxLength": 60 },
+        "pulseOxChipVariant": { "type": "string", "maxLength": 60 },
+        "ecgSensor": { "type": "string", "maxLength": 60 },
+        "imuSensor": { "type": "string", "maxLength": 60 },
+        "tempSensor": { "type": "string", "maxLength": 60 },
+        "displayModule": { "type": "string", "maxLength": 60 },
+        "hapticModule": { "type": "string", "maxLength": 60 },
+        "samplingIntervalMs": { "type": "integer" },
+        "connectionStatus": { "type": "string", "enum": ["not_connected", "streaming", "offline"] },
+        "lastSeenAt": { "type": "string", "maxLength": 60 },
+        "lastDataSource": { "type": "string", "enum": ["esp32_hardware", "simulator", "none"] },
+        "sensorAvailability": { "type": "object", "description": "Per-sensor readiness map on the wearable device." },
+        "lastReadingSummary": { "type": "object", "description": "Latest sanitized telemetry snapshot from this device." },
+        "firmwareVersion": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "deviceId",
+        "label",
+        "patientId",
+        "ownerUid",
+        "boardType",
+        "pulseOxChipVariant",
+        "imuSensor",
+        "tempSensor",
+        "displayModule",
+        "hapticModule",
+        "samplingIntervalMs",
+        "connectionStatus",
+        "firmwareVersion",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CareLink": {
+      "title": "CareLink",
+      "description": "Patient-to-caregiver monitoring and emergency escalation link.",
+      "type": "object",
+      "properties": {
+        "linkId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "patientOwnerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "caregiverUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "caregiverName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "priority": { "type": "string", "enum": ["primary", "secondary"] },
+        "status": { "type": "string", "enum": ["active", "pending", "revoked"] },
+        "relationship": { "type": "string", "maxLength": 60 },
+        "permissions": { "type": "object", "description": "Caregiver authorization scopes for linked patient data." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "linkId",
+        "patientId",
+        "patientName",
+        "patientOwnerUid",
+        "caregiverUid",
+        "caregiverName",
+        "priority",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SystemSetting": {
+      "title": "SystemSetting",
+      "description": "Administrator-controlled monitoring, voice retry, and escalation configuration.",
+      "type": "object",
+      "properties": {
+        "settingId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "escalationTimeoutSec": { "type": "integer" },
+        "baselineMinSamples": { "type": "integer" },
+        "samplingDefaultMs": { "type": "integer" },
+        "warningPersistenceWindows": { "type": "integer" },
+        "criticalPersistenceWindows": { "type": "integer" },
+        "anomalyScoreThreshold": { "type": "number" },
+        "retryIntervalSec": { "type": "integer" },
+        "maxCallAttempts": { "type": "integer" },
+        "fallbackNotificationEnabled": { "type": "boolean" },
+        "alertLevels": {
+          "type": "object",
+          "description": "Structured Low, Medium, and High anomaly detection criteria and automated emergency escalation hooks."
+        },
+        "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["settingId", "escalationTimeoutSec", "baselineMinSamples", "samplingDefaultMs", "updatedByUid", "updatedAt"]
+    },
+    "CaregiverVoiceContact": {
+      "title": "CaregiverVoiceContact",
+      "description": "Registered caregiver voice contact metadata, explicit call consent, and PHI authorization flags (raw phone numbers isolated server-side).",
+      "type": "object",
+      "properties": {
+        "contactId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientOwnerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "caregiverUid": { "type": "string", "maxLength": 128 },
+        "caregiverName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "maskedPhone": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "priority": { "type": "string", "enum": ["primary", "secondary", "alternate"] },
+        "priorityRank": { "type": "integer" },
+        "preferredLanguage": { "type": "string", "enum": ["en", "kn", "hi"] },
+        "explicitCallConsent": { "type": "boolean" },
+        "consentRecordedAt": { "type": "string", "maxLength": 64 },
+        "authorizedForPatientIdentity": { "type": "boolean" },
+        "authorizedForHealthReadings": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "paused"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "contactId",
+        "patientId",
+        "patientOwnerUid",
+        "caregiverName",
+        "maskedPhone",
+        "priority",
+        "priorityRank",
+        "preferredLanguage",
+        "explicitCallConsent",
+        "authorizedForPatientIdentity",
+        "authorizedForHealthReadings",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "VoiceCallRecord": {
+      "title": "VoiceCallRecord",
+      "description": "Arova AI outbound voice call record with status lifecycle, language, structured caregiver response, and escalation tracking.",
+      "type": "object",
+      "properties": {
+        "callId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "callSid": { "type": "string", "maxLength": 64 },
+        "escalationId": { "type": "string", "maxLength": 128 },
+        "alertId": { "type": "string", "maxLength": 128 },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientOwnerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "alertSeverity": { "type": "string", "enum": ["Low", "Medium", "High", "Test"] },
+        "reasonForCalling": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "relevantReading": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "caregiverContactId": { "type": "string", "maxLength": 128 },
+        "caregiverName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "caregiverPriority": { "type": "string", "enum": ["primary", "secondary", "alternate", "test"] },
+        "maskedPhone": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "callStatus": {
+          "type": "string",
+          "enum": ["Initiated", "Ringing", "Answered", "Unanswered", "Busy", "Failed", "Completed"]
+        },
+        "selectedLanguage": { "type": "string", "enum": ["en", "kn", "hi"] },
+        "caregiverResponse": {
+          "type": "string",
+          "enum": [
+            "Pending",
+            "Will check immediately",
+            "Already checking on the patient",
+            "Patient is safe",
+            "Unable to assist",
+            "Not available",
+            "Requests another contact",
+            "Needs emergency assistance",
+            "Unclear response"
+          ]
+        },
+        "responseSummary": { "type": "string", "maxLength": 500 },
+        "durationSec": { "type": "integer" },
+        "retryCount": { "type": "integer" },
+        "escalationStatus": {
+          "type": "string",
+          "enum": [
+            "none",
+            "calling_primary",
+            "retrying",
+            "escalated_secondary",
+            "acknowledged",
+            "human_follow_up_required",
+            "fallback_notified"
+          ]
+        },
+        "followUpAction": { "type": "string", "maxLength": 300 },
+        "isTestCall": { "type": "boolean" },
+        "startedAt": { "type": "string", "maxLength": 64 },
+        "endedAt": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "callId",
+        "patientId",
+        "patientOwnerUid",
+        "patientName",
+        "alertSeverity",
+        "reasonForCalling",
+        "relevantReading",
+        "caregiverName",
+        "caregiverPriority",
+        "maskedPhone",
+        "callStatus",
+        "selectedLanguage",
+        "caregiverResponse",
+        "durationSec",
+        "retryCount",
+        "escalationStatus",
+        "followUpAction",
+        "isTestCall",
+        "startedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "VoiceEscalationEvent": {
+      "title": "VoiceEscalationEvent",
+      "description": "Emergency severity evaluation and multi-caregiver escalation workflow record.",
+      "type": "object",
+      "properties": {
+        "escalationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "alertId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientOwnerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "severity": { "type": "string", "enum": ["Low", "Medium", "High"] },
+        "triggerMetric": { "type": "string", "maxLength": 120 },
+        "readingSummary": { "type": "string", "maxLength": 200 },
+        "reasonForCalling": { "type": "string", "maxLength": 400 },
+        "escalationStatus": {
+          "type": "string",
+          "enum": [
+            "logged_low",
+            "notified_medium",
+            "calling_primary",
+            "retrying",
+            "escalated_secondary",
+            "acknowledged",
+            "human_follow_up_required",
+            "fallback_notified",
+            "resolved"
+          ]
+        },
+        "activeAttemptCount": { "type": "integer" },
+        "maxAttempts": { "type": "integer" },
+        "retryIntervalSec": { "type": "integer" },
+        "currentCaregiverName": { "type": "string", "maxLength": 100 },
+        "currentCaregiverPriority": { "type": "string", "maxLength": 32 },
+        "caregiverResponse": { "type": "string", "maxLength": 80 },
+        "fallbackTriggered": { "type": "boolean" },
+        "humanFollowUpRequired": { "type": "boolean" },
+        "emergencyActive": { "type": "boolean" },
+        "followUpAction": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "escalationId",
+        "alertId",
+        "patientId",
+        "patientOwnerUid",
+        "patientName",
+        "severity",
+        "escalationStatus",
+        "activeAttemptCount",
+        "maxAttempts",
+        "retryIntervalSec",
+        "fallbackTriggered",
+        "humanFollowUpRequired",
+        "emergencyActive",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "VoiceAuditLog": {
+      "title": "VoiceAuditLog",
+      "description": "Immutable security and escalation audit log entry for Arova AI voice workflow.",
+      "type": "object",
+      "properties": {
+        "auditId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "eventType": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientOwnerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "callId": { "type": "string", "maxLength": 128 },
+        "escalationId": { "type": "string", "maxLength": 128 },
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "auditId",
+        "eventType",
+        "patientId",
+        "patientOwnerUid",
+        "actorUid",
+        "summary",
+        "createdAt"
+      ]
+    },
+    "BaselineRecord": {
+      "title": "BaselineRecord",
+      "description": "Personalized feature statistics and baseline learning status per patient and source.",
+      "type": "object",
+      "properties": {
+        "baselineId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "primaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "secondaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "source": { "type": "string", "enum": ["sample_demo", "simulator", "esp32_hardware"] },
+        "learningStatus": { "type": "string", "enum": ["not_started", "collecting", "ready"] },
+        "featureStatistics": { "type": "object", "description": "Personal vital and motion feature means, medians, standard deviations, and sample counts." },
+        "modelVersion": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "baselineId",
+        "patientId",
+        "ownerUid",
+        "source",
+        "learningStatus",
+        "featureStatistics",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AnomalyEventRecord": {
+      "title": "AnomalyEventRecord",
+      "description": "Immutable anomaly detection event summary persisted for trend and audit review.",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "primaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "secondaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "anomalyScore": { "type": "number" },
+        "alertLevel": { "type": "string", "enum": ["Normal", "Warning", "Critical"] },
+        "featureSummary": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "contributingFeatures": { "type": "array" },
+        "modelVersion": { "type": "string", "maxLength": 80 },
+        "source": { "type": "string", "enum": ["sample_demo", "simulator", "esp32_hardware"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "eventId",
+        "patientId",
+        "ownerUid",
+        "anomalyScore",
+        "alertLevel",
+        "featureSummary",
+        "source",
+        "createdAt"
+      ]
+    },
+    "SystemAuditLog": {
+      "title": "SystemAuditLog",
+      "description": "Immutable system security and monitoring activity audit log.",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorRole": { "type": "string", "enum": ["patient", "caregiver", "admin"] },
+        "eventType": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["logId", "userId", "actorRole", "eventType", "summary", "createdAt"]
+    },
+    "InAppNotification": {
+      "title": "InAppNotification",
+      "description": "Patient or authorized caregiver in-app notification record with read tracking and simulation provenance.",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "alertId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "primaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "secondaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "recipientRole": { "type": "string", "enum": ["patient", "caregiver", "admin"] },
+        "severity": { "type": "string", "enum": ["Warning", "Critical"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "deliveryStatus": { "type": "string", "enum": ["delivered", "simulated", "failed", "skipped_unauthorized"] },
+        "isSimulated": { "type": "boolean" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "notificationId",
+        "alertId",
+        "patientId",
+        "ownerUid",
+        "recipientRole",
+        "severity",
+        "title",
+        "message",
+        "deliveryStatus",
+        "isSimulated",
+        "read",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "FallDetectionEvent": {
+      "title": "FallDetectionEvent",
+      "description": "Webcam pose-estimation fall detection event and user/caregiver confirmation record (no raw video stored).",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "patientId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "primaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "secondaryCaregiverUid": { "type": "string", "maxLength": 128 },
+        "alertId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "detectionMode": { "type": "string", "enum": ["webcam_pose", "demo_simulation"] },
+        "isSimulated": { "type": "boolean" },
+        "state": { "type": "string", "enum": ["Normal", "Warning", "Possible Fall"] },
+        "status": { "type": "string", "enum": ["pending_confirmation", "escalated", "cancelled_safe", "caregiver_acknowledged", "false_alert", "resolved"] },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 600 },
+        "confidence": { "type": "number" },
+        "torsoAngleDeg": { "type": "number" },
+        "verticalVelocity": { "type": "number" },
+        "horizontalDurationSec": { "type": "number" },
+        "peopleCount": { "type": "integer" },
+        "sensorFusionStatus": { "type": "string", "enum": ["webcam_only", "corroborated", "sensor_disagreement"] },
+        "wearableSummary": { "type": "string", "maxLength": 240 },
+        "location": { "type": "object", "description": "Optional explicit user-permitted geolocation coordinates." },
+        "cancelledBy": { "type": "string", "maxLength": 100 },
+        "cancellationReason": { "type": "string", "maxLength": 300 },
+        "acknowledgedBy": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "eventId",
+        "patientId",
+        "ownerUid",
+        "alertId",
+        "detectionMode",
+        "isSimulated",
+        "state",
+        "status",
+        "reason",
+        "confidence",
+        "torsoAngleDeg",
+        "sensorFusionStatus",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Administrator authorization lookup collection."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public/non-PII user profiles and role assignment."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateContact" },
+      "description": "Isolated PII contact information readable only by owner or admin."
+    },
+    "/patients/{patientId}": {
+      "schema": { "$ref": "#/entities/PatientRecord" },
+      "description": "Monitored patient records, baselines, and assigned caregiver references."
+    },
+    "/patients/{patientId}/readings/{readingId}": {
+      "schema": { "$ref": "#/entities/VitalReading" },
+      "description": "Wearable vital readings subcollection scoped to patient and linked caregivers."
+    },
+    "/patients/{patientId}/alerts/{alertId}": {
+      "schema": { "$ref": "#/entities/AlertRecord" },
+      "description": "Alerts and caregiver escalation workflow logs scoped to patient and caregivers."
+    },
+    "/patients/{patientId}/fallEvents/{eventId}": {
+      "schema": { "$ref": "#/entities/FallDetectionEvent" },
+      "description": "Camera-based pose fall detection events and confirmation history scoped to patient and authorized caregivers."
+    },
+    "/devices/{deviceId}": {
+      "schema": { "$ref": "#/entities/WearableDevice" },
+      "description": "Registered ESP32 wearable hardware units."
+    },
+    "/careLinks/{linkId}": {
+      "schema": { "$ref": "#/entities/CareLink" },
+      "description": "Patient-caregiver monitoring and escalation relationships."
+    },
+    "/systemSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/SystemSetting" },
+      "description": "Global application thresholds, retry policies, and escalation timeouts."
+    },
+    "/caregiverContacts/{contactId}": {
+      "schema": { "$ref": "#/entities/CaregiverVoiceContact" },
+      "description": "Registered caregiver voice contact preferences, consent, and PHI authorization."
+    },
+    "/voiceCallHistory/{callId}": {
+      "schema": { "$ref": "#/entities/VoiceCallRecord" },
+      "description": "Arova AI outbound call history and structured caregiver response records."
+    },
+    "/voiceEscalations/{escalationId}": {
+      "schema": { "$ref": "#/entities/VoiceEscalationEvent" },
+      "description": "Active and historical emergency escalation workflows."
+    },
+    "/voiceAuditLogs/{auditId}": {
+      "schema": { "$ref": "#/entities/VoiceAuditLog" },
+      "description": "Immutable voice calling and escalation audit trail."
+    },
+    "/baselines/{baselineId}": {
+      "schema": { "$ref": "#/entities/BaselineRecord" },
+      "description": "Personalized vital baseline statistics and learning status per patient and source."
+    },
+    "/anomaly_events/{eventId}": {
+      "schema": { "$ref": "#/entities/AnomalyEventRecord" },
+      "description": "Immutable anomaly detection events linked to patient monitoring profiles."
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/SystemAuditLog" },
+      "description": "Immutable authentication, RBAC, device, and alert activity audit logs."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/InAppNotification" },
+      "description": "Patient and authorized caregiver in-app prototype alert notifications."
+    }
+  }
+}

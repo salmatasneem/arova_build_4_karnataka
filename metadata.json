@@ -1,0 +1,11 @@
+{
+  "name": "Remix Remix Remix Remix SmartCare AI",
+  "description": "Wearable-based early warning system for personalized vital-sign monitoring, anomaly detection, and caregiver escalation.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
